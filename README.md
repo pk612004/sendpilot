@@ -1,173 +1,145 @@
 # SendPilot
 
-SendPilot is an email campaign scheduler. You log in with Google, upload a list of email addresses, choose when to start, and SendPilot sends every email at the right time.
+SendPilot is an email campaign scheduler. You log in with Google, upload a list of email addresses, pick a start time, and SendPilot sends every email at the right time without going over your sending limits.
 
-I built it to learn how real sending tools handle the hard parts: sending on time, staying under limits, and not losing or repeating emails when the server crashes.
+I built it to learn how real email tools handle the hard parts: sending on time, staying under limits, and not losing or repeating emails when the server crashes.
 
-**Live demo:** _add your Vercel link here_ · **Deploy guide:** [DEPLOY.md](DEPLOY.md)
+**Live demo:** https://sendpilot-seven.vercel.app
 
-**Stack:** Node.js (JavaScript, ES modules), Express, BullMQ, Redis, MySQL, Elasticsearch, Next.js, React, Tailwind CSS, Docker.
+**Stack:** Node.js (JavaScript), Express, BullMQ, Redis, MySQL, Elasticsearch, Next.js, React, Tailwind CSS, Docker
 
-## What it does
+## In short
 
-- **Schedules emails for an exact time.** Each email is a BullMQ delayed job in Redis. There is no cron and no polling.
-- **Uses several senders.** Emails are shared between your sender inboxes in turn. Sending uses Ethereal (a free fake SMTP service), so no real emails go out.
-- **Respects limits.** Each sender has an hourly limit and a minimum gap between emails. These hold even with many workers running at once. Extra emails move to the next hour instead of being dropped.
-- **Survives restarts.** You can stop the server at any time. Scheduled emails are not lost and not sent twice.
-- **Sends Slack alerts** when a sender reaches its hourly limit (Slack is connected with OAuth).
-- **Search** across your emails with Elasticsearch. If Elasticsearch is down, search uses MySQL instead.
-- **Dashboard:** live counts, scheduled and sent lists, email details, a compose page with CSV upload, a text editor, a send time picker and a preview of the plan.
-- **Queue view:** Bull Board at `/admin/queues` shows every job.
+- Schedule thousands of emails with one upload
+- Each sender has an hourly limit, and it is never crossed, even with many workers running
+- If the server crashes, no email is lost and no email is sent twice
+- Slack message when a sender hits its limit
+- Dashboard to see scheduled and sent emails, search them, and open any email
 
-## Run it locally
+## What makes it different
+
+Most beginner email schedulers run a timer every minute and check the database for emails to send. SendPilot does not do that.
+
+1. **Every email is its own timed job.** Each email becomes a delayed job in Redis (BullMQ) that wakes up at its exact send time. No timer, no checking the database again and again.
+2. **Limits are checked in one step.** The hourly limit and the gap between emails are checked inside Redis with a small Lua script. Because it runs as one step, two workers can never take the same slot, so the limit holds even with many workers.
+3. **Full hours do not drop emails.** If an hour is full, the extra emails move to the next hour instead of failing.
+4. **Crash safe.** MySQL keeps the real record of every email. Redis only keeps the timers. When the worker starts again, it rebuilds any missing timers from MySQL.
+5. **Never sends twice.** If the server dies in the middle of sending an email, we cannot know if it went out. SendPilot marks it `uncertain` and does not send it again, because a repeated email to a customer is worse than a missing one.
+6. **Four checks against duplicates:** a key on the schedule request, a unique (campaign, email) pair in MySQL, one job ID per email, and a status check right before sending.
+
+## Testing
+
+| Test | What it checks | Result |
+|---|---|---|
+| Unit tests (28) | cleaning the email list, splitting between senders, planning send times, error handling | All passed |
+| Redis Lua tests (3) | hourly limit and gap between emails, with many requests at the same time | All passed |
+| Crash test (`npm run verify:restart`) | kills the worker twice with `kill -9` while sending, then checks every email was sent exactly once | Included |
+| Load test (`npm run load-test`) | 1000 emails in the same minute, 2 senders at 200 per hour, checks no hour went over the limit and nothing was dropped | Included |
+| Live check | 40 emails with a limit of 5 per hour, correctly spread across hours on the live site | Passed |
+
+## About the live demo
+
+The live site runs on free hosting, so two things are different from running it on your own computer:
+
+- **Emails are not really sent.** The free server (Render) blocks email ports, so sending is simulated. Every step still runs: timers, limits, status changes, Slack alerts. Only the final send is faked.
+- **Search uses MySQL** instead of Elasticsearch, to stay on free plans.
+- The free server sleeps when nobody uses it, so the first load can take about 30 seconds.
+
+Hosting: Vercel (website), Render (API and worker), TiDB Cloud (MySQL), Redis Cloud (Redis).
+
+## Run it on your computer
 
 You need **Node 22+** and **Docker Desktop**.
 
 ```bash
-npm run setup     # creates env files, starts MySQL/Redis/Elasticsearch in Docker, installs packages, creates tables
+npm run setup     # creates env files, starts MySQL, Redis and Elasticsearch in Docker, installs packages, creates tables
 ```
 
-Then add your Google login keys to `backend/.env` (see below) and start everything:
+Add your Google login keys to `backend/.env`, then start everything:
 
 ```bash
-npm run dev       # API on :4000, worker, and the website on :3000
+npm run dev       # API on port 4000, worker, and website on port 3000
 ```
 
 Open http://localhost:3000.
 
-Run the tests:
+Run all tests:
 
 ```bash
-npm run verify    # unit tests, Redis Lua tests, and a crash/restart test
+npm run verify
 ```
 
-Step-by-step help (Google keys, Slack, Windows tips) is in [SETUP_GUIDE.md](SETUP_GUIDE.md).
+Step by step help (Google keys, Slack, Windows tips) is in [SETUP_GUIDE.md](SETUP_GUIDE.md). Hosting steps are in [DEPLOY.md](DEPLOY.md).
 
 | What | Where |
 |---|---|
 | Website | http://localhost:3000 |
-| Job queue (Bull Board) | http://localhost:3000/admin/queues (login from `BULL_BOARD_USER` / `BULL_BOARD_PASS`) |
+| Job queue (Bull Board) | http://localhost:3000/admin/queues |
 | Health check | http://localhost:4000/health |
 
 MySQL runs on port **3307** so it does not clash with a MySQL already on your computer.
 
-## Settings
-
-Everything is in `backend/.env` (copy of `.env.example`). The values are checked when the app starts.
-
-| Setting | Default | Meaning |
-|---|---|---|
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | | Google login (required) |
-| `SLACK_CLIENT_ID` / `SLACK_CLIENT_SECRET` | | Slack alerts (optional) |
-| `WORKER_CONCURRENCY` | 5 | jobs one worker runs at the same time |
-| `MIN_DELAY_BETWEEN_EMAILS_MS` | 2000 | smallest gap between two emails from one sender |
-| `MAX_EMAILS_PER_HOUR_PER_SENDER` | 200 | highest hourly limit per sender |
-| `MAX_LEADS_PER_CAMPAIGN` | 10000 | max emails in one upload |
-| `JOB_ATTEMPTS` / `JOB_BACKOFF_MS` | 5 / 30000 | retries for temporary SMTP errors |
-
 ## How it works
 
 ```
- Browser --> Next.js (:3000) -- forwards /api --> Express API (:4000)
-                                                     |        |
-                                                   MySQL    Redis (BullMQ + limits)
-                                                     ^        |
-                                                     |        v
-                                              Worker(s)  <-- delayed job fires at send time
-                                               |      |       |
-                                         Ethereal SMTP  Elasticsearch  Slack
+ Browser --> Next.js website --> Express API
+                                   |       |
+                                 MySQL   Redis (timers + limits)
+                                   ^       |
+                                   |       v
+                                  Worker (wakes up at send time)
+                                   |       |        |
+                                 SMTP   Search    Slack
 ```
-
-- **MySQL** holds the real data: campaigns, every email and its status.
-- **Redis** only holds *when* to send (one job per email) and the limit counters. If Redis loses data, the worker rebuilds the jobs from MySQL when it starts.
-- **Elasticsearch** is only for search. It can be rebuilt with `npm --prefix backend run reindex`.
-- The API and the worker are two separate processes, so you can run more workers.
 
 **When you schedule a campaign:**
-1. The list is cleaned: trimmed, lowercased, checked, duplicates removed.
-2. Emails are shared between the chosen senders (1, 2, 1, 2...).
-3. A Lua script in Redis plans the send times hour by hour, up to the hourly limit, with the gap between emails.
-4. Everything is saved to MySQL in one transaction.
-5. One delayed job per email is added to BullMQ, with the job ID `email-{id}`.
+1. The email list is cleaned: spaces removed, lowercased, checked, duplicates removed.
+2. Emails are split between the chosen senders in turn (1, 2, 1, 2...).
+3. Redis plans the send time of each email, hour by hour, within the limit.
+4. Everything is saved to MySQL in one go.
+5. One timed job is created for each email.
 
-**When a job runs, the worker:**
+**When an email's time comes, the worker:**
 1. Reads the email from MySQL and skips it if it was already handled.
-2. Asks Redis for a send slot (hourly limit + gap, in one atomic step). If the hour is full, the job moves to the next hour and Slack gets one alert.
-3. Marks the email `sending` with `UPDATE ... WHERE status='scheduled'`, so only one worker can win.
-4. Sends it over SMTP with a fixed Message-ID.
-5. Saves the result: `sent`, retry later, `failed` or `uncertain`.
+2. Asks Redis for a free slot. If the hour is full, the email moves to the next hour.
+3. Marks the email `sending`. Only one worker can do this for the same email.
+4. Sends it.
+5. Saves the result: `sent`, try again later, `failed` or `uncertain`.
 
-## No lost emails, no double sends
-
-- Jobs live in Redis (with AOF turned on), not in Node's memory, so they survive restarts.
-- On start, the worker re-adds every scheduled email with the same job ID. Existing jobs are ignored and missing ones are created again.
-- Four checks stop duplicates: an `Idempotency-Key` on the schedule request, a unique (campaign, address) pair in MySQL, one job ID per email, and the status check before sending.
-- If the worker dies in the middle of sending, we can't know whether the email went out. SendPilot marks it `uncertain` and does not send it again, because a duplicate email is worse than a missing one.
-
-| SMTP error | What happens |
+| Email error | What happens |
 |---|---|
-| 4xx, connection refused | try again later |
-| 5xx, wrong password | marked `failed` |
-| timeout while sending | marked `uncertain`, not resent |
-
-`npm run verify:restart` tests this for real: it kills the worker with `kill -9` twice while emails are going out, then checks that every email was sent once and on time.
-
-## Load test
-
-```bash
-npm run load-test
-```
-
-Schedules 1000 emails for the same minute with 2 senders at 200 per hour, then checks from MySQL that no hour went over the limit and nothing was dropped.
+| Temporary error (4xx, connection refused) | tries again later |
+| Permanent error (5xx, wrong password) | marked `failed` |
+| Timeout while sending | marked `uncertain`, not sent again |
 
 ## Project layout
 
 ```
 backend/
   src/config       settings
-  src/db           schema, MySQL pool, email status changes
-  src/redis        Redis connection and the two Lua scripts
-  src/queue        BullMQ queues
-  src/services     scheduling, rate limits, mailer, search, Slack, auth
-  src/workers      the send steps and the restart check
+  src/db           tables and MySQL connection
+  src/redis        Redis connection and Lua scripts
+  src/queue        job queues
+  src/services     scheduling, limits, mailer, search, Slack, login
+  src/workers      sending steps and restart check
   src/routes       API routes
-  scripts/         load test, reindex, restart test
-  tests/           unit and Redis tests (node --test)
+  scripts/         load test, crash test
+  tests/           unit and Redis tests
 frontend/
   src/app          pages: login, dashboard, compose, email details
-  src/components   sidebar, email list, compose parts, icons, small UI parts
-  src/lib          API client, helpers
+  src/components   sidebar, email list, compose parts, small UI parts
+  src/lib          API helpers
 ```
-
-## API
-
-All routes are under `/api` and need the login cookie.
-
-| Method | Path | What it does |
-|---|---|---|
-| GET | `/api/auth/google` | Google login |
-| GET | `/api/auth/me` | Current user |
-| POST | `/api/auth/logout` | Log out |
-| GET | `/api/senders` | Your senders |
-| POST | `/api/senders` | Add a sender |
-| POST | `/api/campaigns` | Schedule a campaign |
-| GET | `/api/emails?tab=scheduled\|sent` | List emails |
-| GET | `/api/emails/:id` | One email |
-| GET | `/api/emails/stats` | Counts per status |
-| GET | `/api/search?q=` | Search |
-| GET | `/api/slack/install` | Connect Slack |
-| POST | `/api/slack/test` | Send a Slack test message |
 
 ## Trade-offs
 
-- Hours are fixed clock hours in UTC, not a rolling 60 minutes. Simpler to understand and show.
-- A used rate-limit slot is not given back if the send fails, so the system may send a bit less than the limit, never more.
-- Lua scripts are written for a single Redis server. Redis Cluster would need hash tags on the keys.
-- Attachments, templates and open tracking are not built yet.
+- Hours are fixed clock hours (UTC), not a rolling 60 minutes. Easier to understand and show.
+- If a send fails, its slot is not given back. So it may send a little less than the limit, but never more.
+- The Lua scripts are written for one Redis server, not a Redis cluster.
 
 ## Ideas for later
 
-- Real SMTP providers (Gmail, SES) next to Ethereal
-- Template variables like `{{firstName}}`
+- Real email providers like Gmail or Amazon SES
+- Name fields in emails, like `Hi {{firstName}}`
 - Pause and cancel a campaign
-- Deploy with a managed MySQL and Redis
+- Attachments and open tracking

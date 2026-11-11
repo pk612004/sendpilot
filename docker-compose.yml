@@ -1,0 +1,47 @@
+# Infra only (MySQL, Redis, Elasticsearch). The app runs with `npm run dev`.
+#   docker compose up -d
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: sendpilot
+      MYSQL_USER: sendpilot
+      MYSQL_PASSWORD: sendpilot
+    command: ["--default-time-zone=+00:00"]
+    ports: ["3307:3306"]  # 3307 on the host avoids clashing with a locally installed MySQL
+    volumes: [mysql-data:/var/lib/mysql]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-psendpilot", "-usendpilot"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    # appendonly: delayed jobs survive a REDIS restart, not just an app restart
+    # noeviction: Redis must never silently delete queue keys under memory pressure
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--maxmemory-policy", "noeviction"]
+    ports: ["6379:6379"]
+    volumes: [redis-data:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 20
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports: ["9200:9200"]
+    volumes: [es-data:/usr/share/elasticsearch/data]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200 >/dev/null || exit 1"]
+      interval: 10s
+      retries: 30
+
+volumes:
+  mysql-data:
+  redis-data:
+  es-data:

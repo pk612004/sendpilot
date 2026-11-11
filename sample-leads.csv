@@ -1,0 +1,45 @@
+name,email,company
+Anaya 0,anaya0@example.com,Company 0
+Arjun 1,arjun1@example.com,Company 1
+Dev 2,dev2@example.com,Company 2
+Vikram 3,vikram3@example.com,Company 3
+Ravi 4,ravi4@example.com,Company 4
+Sita 5,sita5@example.com,Company 5
+Rohan 6,rohan6@example.com,Company 6
+Sita 7,sita7@example.com,Company 0
+Anaya 8,anaya8@example.com,Company 1
+Tara 9,tara9@example.com,Company 2
+Ravi 10,ravi10@example.com,Company 3
+Rohan 11,rohan11@example.com,Company 4
+Meera 12,meera12@example.com,Company 5
+Ravi 13,ravi13@example.com,Company 6
+Sita 14,sita14@example.com,Company 0
+Dev 15,dev15@example.com,Company 1
+Dev 16,dev16@example.com,Company 2
+Sita 17,sita17@example.com,Company 3
+Meera 18,meera18@example.com,Company 4
+Sita 19,sita19@example.com,Company 5
+Rohan 20,rohan20@example.com,Company 6
+Dev 21,dev21@example.com,Company 0
+Ravi 22,ravi22@example.com,Company 1
+Tara 23,tara23@example.com,Company 2
+Sita 24,sita24@example.com,Company 3
+Meera 25,meera25@example.com,Company 4
+Vikram 26,vikram26@example.com,Company 5
+Vikram 27,vikram27@example.com,Company 6
+Tara 28,tara28@example.com,Company 0
+Ravi 29,ravi29@example.com,Company 1
+Tara 30,tara30@example.com,Company 2
+Tara 31,tara31@example.com,Company 3
+Dev 32,dev32@example.com,Company 4
+Ravi 33,ravi33@example.com,Company 5
+Meera 34,meera34@example.com,Company 6
+Ravi 35,ravi35@example.com,Company 0
+Rohan 36,rohan36@example.com,Company 1
+Arjun 37,arjun37@example.com,Company 2
+Kabir 38,kabir38@example.com,Company 3
+Dev 39,dev39@example.com,Company 4
+Anaya Again,anaya0@example.com,Dup Co
+ANAYA LOUD,ANAYA0@EXAMPLE.COM,Dup Co
+Bad,broken@,Nope
+Bad2,@nodomain.com,Nope

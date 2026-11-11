@@ -1,0 +1,21 @@
+{
+  "name": "sendpilot",
+  "private": true,
+  "description": "SendPilot: an email campaign scheduler (BullMQ + Redis + MySQL) with a Next.js dashboard",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "infra": "docker compose up -d --wait",
+    "infra:down": "docker compose down",
+    "dev": "concurrently -k -n api,worker,web -c blue,magenta,green \"npm --prefix backend run dev:api\" \"npm --prefix backend run dev:worker\" \"npm --prefix frontend run dev\"",
+    "test": "npm --prefix backend test",
+    "verify": "npm --prefix backend test && npm --prefix backend run test:integration && npm --prefix backend run verify:restart",
+    "verify:restart": "npm --prefix backend run verify:restart",
+    "load-test": "npm --prefix backend run load-test"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

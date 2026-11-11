@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-white text-gray-900 antialiased;
+}
+
+/* Placeholder for the contentEditable rich-text editor */
+.editor:empty::before {
+  content: attr(data-placeholder);
+  @apply pointer-events-none text-gray-400;
+}
+.editor ul { @apply ml-5 list-disc; }
+.editor ol { @apply ml-5 list-decimal; }
+.editor blockquote { @apply border-l-4 border-gray-300 pl-3 text-gray-600; }
+.editor h2 { @apply text-lg font-semibold; }
+
+/* Rendered email bodies in the detail view */
+.email-body ul { @apply ml-5 list-disc; }
+.email-body ol { @apply ml-5 list-decimal; }
+.email-body blockquote { @apply my-2 border-l-4 border-yellow-400 bg-yellow-50 px-3 py-2; }
+.email-body p, .email-body div { @apply min-h-[1em]; }
+.email-body h2 { @apply text-lg font-semibold; }

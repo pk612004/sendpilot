@@ -1,0 +1,42 @@
+{
+  "name": "sendpilot-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -n api,worker -c blue,magenta \"node --watch src/server.js\" \"node --watch src/worker.js\"",
+    "dev:api": "node --watch src/server.js",
+    "dev:worker": "node --watch src/worker.js",
+    "start:api": "node src/server.js",
+    "start:worker": "node src/worker.js",
+    "migrate": "node src/db/migrate.js",
+    "reindex": "node scripts/reindex.js",
+    "load-test": "node scripts/load-test.js",
+    "verify:restart": "node scripts/verify-restart.js",
+    "test": "node --test \"tests/unit/*.test.js\"",
+    "test:integration": "node --test --test-concurrency=1 \"tests/integration/*.test.js\"",
+    "start": "node src/db/migrate.js && node src/start.js"
+  },
+  "dependencies": {
+    "@bull-board/api": "^6.5.0",
+    "@bull-board/express": "^6.5.0",
+    "@elastic/elasticsearch": "^8.15.0",
+    "bullmq": "^5.34.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "google-auth-library": "^9.14.2",
+    "ioredis": "^5.4.1",
+    "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.11.4",
+    "nodemailer": "^6.9.16",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
